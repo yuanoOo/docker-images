@@ -45,7 +45,9 @@ RUN set -eux; \
 # =============================================================================
 # Download OceanBase components with fixed compatible versions
 RUN set -eux; \
+    echo "Target platform: ${TARGETPLATFORM}" && \
     if [[ ${TARGETPLATFORM} == 'linux/amd64' ]] ; then \
+        echo "Downloading packages for x86_64..." && \
         # Download OceanBase Observer for x86_64 (fixed version)
         curl -f -L -o /app/oceanbase-ce.rpm \
             https://mirrors.aliyun.com/oceanbase/community/stable/el/8/x86_64/oceanbase-ce-4.3.5.1-101010042025042417.el8.x86_64.rpm && \
@@ -58,7 +60,9 @@ RUN set -eux; \
         # Download Binlog Service for x86_64 (fixed version)
         curl -f -L -o /app/obbinlog-ce.rpm \
             https://mirrors.aliyun.com/oceanbase/community/stable/el/8/x86_64/obbinlog-ce-4.2.5-100000042025052216.el8.x86_64.rpm && \
+        echo "x86_64 packages downloaded successfully" ; \
     else \
+        echo "Downloading packages for ARM64..." && \
         # Download OceanBase Observer for aarch64 (fixed version)
         curl -f -L -o /app/oceanbase-ce.rpm \
             https://mirrors.aliyun.com/oceanbase/community/stable/el/8/aarch64/oceanbase-ce-4.3.5.1-101010042025042417.el8.aarch64.rpm && \
@@ -70,10 +74,13 @@ RUN set -eux; \
             https://mirrors.aliyun.com/oceanbase/community/stable/el/8/aarch64/obproxy-ce-4.3.4.0-1.el8.aarch64.rpm && \
         # Download Binlog Service for aarch64 (fixed version)
         curl -f -L -o /app/obbinlog-ce.rpm \
-            https://mirrors.aliyun.com/oceanbase/community/stable/el/8/aarch64/obbinlog-ce-4.2.5-100000042025052216.el8.aarch64.rpm ; \
+            https://mirrors.aliyun.com/oceanbase/community/stable/el/8/aarch64/obbinlog-ce-4.2.5-100000042025052216.el8.aarch64.rpm && \
+        echo "ARM64 packages downloaded successfully" ; \
     fi && \
     # Verify downloaded files
-    ls -la /app/*.rpm
+    echo "Verifying downloaded packages..." && \
+    ls -la /app/*.rpm && \
+    echo "All packages downloaded and verified successfully"
 
 # =============================================================================
 # Step 4: Copy Configuration Scripts
