@@ -1,0 +1,97 @@
+name: test obbinlog-ce
+
+on:
+  push:
+    branches:
+      - 'test-*'
+  pull_request:
+    paths:
+      - '.github/workflows/*obbinlog-ce*.yml'
+      - 'obbinlog-ce/**'
+
+concurrency:
+  group: test-obbinlog-ce-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-obbinlog-ce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build obbinlog-ce for x86_64
+        uses: docker/build-push-action@v6
+        with:
+          context: ./obbinlog-ce
+          platforms: linux/amd64
+          file: ./obbinlog-ce/Dockerfile
+          push: false
+          tags: obbinlog-ce:test-x86_64
+          build-args: |
+            TARGETPLATFORM=linux/amd64
+
+      - name: Build obbinlog-ce for ARM64
+        uses: docker/build-push-action@v6
+        with:
+          context: ./obbinlog-ce
+          platforms: linux/arm64
+          file: ./obbinlog-ce/Dockerfile
+          push: false
+          tags: obbinlog-ce:test-arm64
+          build-args: |
+            TARGETPLATFORM=linux/arm64
+
+      - name: Save and upload x86_64 image
+        run: |
+          # Save x86_64 image
+          docker save obbinlog-ce:test-x86_64 | gzip > obbinlog-ce-x86_64.tar.gz
+          
+          # Create build info for x86_64
+          echo "Build completed at: $(date)" > build-info-x86_64.txt
+          echo "Platform: x86_64" >> build-info-x86_64.txt
+          echo "Branch: ${{ github.ref }}" >> build-info-x86_64.txt
+          echo "Commit: ${{ github.sha }}" >> build-info-x86_64.txt
+          echo "Triggered by: ${{ github.event_name }}" >> build-info-x86_64.txt
+          
+          # Create x86_64 archive
+          tar -czf obbinlog-ce-x86_64-build.tar.gz \
+            obbinlog-ce-x86_64.tar.gz \
+            build-info-x86_64.txt
+
+      - name: Upload x86_64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: obbinlog-ce-x86_64-${{ github.run_number }}
+          path: obbinlog-ce-x86_64-build.tar.gz
+          retention-days: 30
+
+      - name: Save and upload ARM64 image
+        run: |
+          # Save ARM64 image
+          docker save obbinlog-ce:test-arm64 | gzip > obbinlog-ce-arm64.tar.gz
+          
+          # Create build info for ARM64
+          echo "Build completed at: $(date)" > build-info-arm64.txt
+          echo "Platform: ARM64" >> build-info-arm64.txt
+          echo "Branch: ${{ github.ref }}" >> build-info-arm64.txt
+          echo "Commit: ${{ github.sha }}" >> build-info-arm64.txt
+          echo "Triggered by: ${{ github.event_name }}" >> build-info-arm64.txt
+          
+          # Create ARM64 archive
+          tar -czf obbinlog-ce-arm64-build.tar.gz \
+            obbinlog-ce-arm64.tar.gz \
+            build-info-arm64.txt
+
+      - name: Upload ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: obbinlog-ce-arm64-${{ github.run_number }}
+          path: obbinlog-ce-arm64-build.tar.gz
+          retention-days: 30 
