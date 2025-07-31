@@ -33,6 +33,7 @@ jobs:
           platforms: linux/amd64
           file: ./obbinlog-ce/Dockerfile
           push: false
+          load: true
           tags: obbinlog-ce:test-x86_64
           build-args: |
             TARGETPLATFORM=linux/amd64
@@ -44,14 +45,24 @@ jobs:
           platforms: linux/arm64
           file: ./obbinlog-ce/Dockerfile
           push: false
+          load: true
           tags: obbinlog-ce:test-arm64
           build-args: |
             TARGETPLATFORM=linux/arm64
 
       - name: Save and upload x86_64 image
         run: |
+          # Check if image exists
+          echo "Checking for x86_64 image..."
+          docker images | grep obbinlog-ce || echo "No obbinlog-ce images found"
+          
           # Save x86_64 image
+          echo "Saving x86_64 image..."
           docker save obbinlog-ce:test-x86_64 | gzip > obbinlog-ce-x86_64.tar.gz
+          
+          # Verify saved file
+          echo "Verifying saved file..."
+          ls -la obbinlog-ce-x86_64.tar.gz
           
           # Create build info for x86_64
           echo "Build completed at: $(date)" > build-info-x86_64.txt
@@ -61,9 +72,14 @@ jobs:
           echo "Triggered by: ${{ github.event_name }}" >> build-info-x86_64.txt
           
           # Create x86_64 archive
+          echo "Creating x86_64 archive..."
           tar -czf obbinlog-ce-x86_64-build.tar.gz \
             obbinlog-ce-x86_64.tar.gz \
             build-info-x86_64.txt
+          
+          # Verify archive
+          echo "Verifying archive..."
+          ls -la obbinlog-ce-x86_64-build.tar.gz
 
       - name: Upload x86_64 artifacts
         uses: actions/upload-artifact@v4
@@ -74,8 +90,17 @@ jobs:
 
       - name: Save and upload ARM64 image
         run: |
+          # Check if image exists
+          echo "Checking for ARM64 image..."
+          docker images | grep obbinlog-ce || echo "No obbinlog-ce images found"
+          
           # Save ARM64 image
+          echo "Saving ARM64 image..."
           docker save obbinlog-ce:test-arm64 | gzip > obbinlog-ce-arm64.tar.gz
+          
+          # Verify saved file
+          echo "Verifying saved file..."
+          ls -la obbinlog-ce-arm64.tar.gz
           
           # Create build info for ARM64
           echo "Build completed at: $(date)" > build-info-arm64.txt
@@ -85,9 +110,14 @@ jobs:
           echo "Triggered by: ${{ github.event_name }}" >> build-info-arm64.txt
           
           # Create ARM64 archive
+          echo "Creating ARM64 archive..."
           tar -czf obbinlog-ce-arm64-build.tar.gz \
             obbinlog-ce-arm64.tar.gz \
             build-info-arm64.txt
+          
+          # Verify archive
+          echo "Verifying archive..."
+          ls -la obbinlog-ce-arm64-build.tar.gz
 
       - name: Upload ARM64 artifacts
         uses: actions/upload-artifact@v4
