@@ -38,6 +38,13 @@ jobs:
           build-args: |
             TARGETPLATFORM=linux/amd64
 
+      - name: Clean up build resources
+        run: |
+          echo "Cleaning up build resources..."
+          docker system prune -f
+          docker builder prune -f
+          echo "Build resources cleaned up"
+
       - name: Start obbinlog-ce container
         run: |
           echo "Starting obbinlog-ce container..."
@@ -56,8 +63,8 @@ jobs:
             echo "Container status:"
             docker ps --filter name=obbinlog-ce-test || echo "Container not found"
             
-            echo "Recent container logs (last 10 lines):"
-            docker logs --tail 10 obbinlog-ce-test 2>/dev/null || echo "No logs available yet"
+            echo "Complete container logs:"
+            docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available yet"
             
             if docker logs obbinlog-ce-test 2>/dev/null | grep -q "Container will keep running"; then
               echo "✅ Container is ready! (attempt $i/120)"
