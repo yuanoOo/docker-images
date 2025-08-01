@@ -108,8 +108,8 @@ echo "Checking Observer status after sleep..."
 echo "Observer process status:"
 ps aux | grep observer || echo "Observer process not found"
 
-echo "Observer logs (last 300 lines):"
-tail -300 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
+echo "Observer logs (last 10 lines):"
+tail -10 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
 
 echo "Checking Observer connection..."
 if obclient -h127.0.0.1 -uroot -P $JDBC_PORT -e "SELECT 1;" 2>/dev/null; then
@@ -119,7 +119,7 @@ else
   sleep 30
   echo "Final Observer status check:"
   ps aux | grep observer || echo "Observer process not found"
-  tail -300 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
+  tail -10 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
 fi
 
 # Step 9: Initialize OceanBase Cluster and Create Users
@@ -168,18 +168,21 @@ echo "Tenant '$TENANT_NAME' created successfully"
 # =============================================================================
 echo "Configuring tenant user password..."
 echo "Setting password for root user in tenant '$TENANT_NAME'..."
-obclient -h127.0.0.1 -uroot@$TENANT_NAME -P ${JDBC_PORT} -A <<EOF
-alter user root identified by "$PASSWORD";
-EOF
 
-# Verify password was set successfully
-echo "Verifying password was set successfully for tenant '$TENANT_NAME'..."
-if obclient -h127.0.0.1 -uroot@$TENANT_NAME -P ${JDBC_PORT} -p$PASSWORD -e "SELECT 1;" 2>/dev/null; then
+# Set password and capture any errors
+echo "Executing password set command..."
+echo "Command: alter user root identified by '$PASSWORD';"
+result=$(obclient -h127.0.0.1 -uroot@$TENANT_NAME -P ${JDBC_PORT} -A -e "alter user root identified by '$PASSWORD';" 2>&1)
+echo "Command result: $result"
+
+# Check if password was set successfully
+echo "Verifying password was set successfully..."
+verify_result=$(obclient -h127.0.0.1 -uroot@$TENANT_NAME -P ${JDBC_PORT} -p$PASSWORD -e "SELECT 1;" 2>&1)
+echo "Verification result: $verify_result"
+if [ $? -eq 0 ]; then
   echo "✅ Password for tenant '$TENANT_NAME' was set successfully"
 else
   echo "❌ Failed to verify password for tenant '$TENANT_NAME'"
-  echo "Attempting to check tenant status..."
-  obclient -h127.0.0.1 -uroot -P ${JDBC_PORT} -e "SHOW TENANTS;" || echo "Failed to show tenants"
 fi
 
 # Step 11: Start OBProxy Service
