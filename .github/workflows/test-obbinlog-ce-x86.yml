@@ -52,17 +52,26 @@ jobs:
           
           echo "Waiting for container to start and be ready..."
           for i in {1..120}; do
+            echo "=== Container startup check (attempt $i/120) ==="
+            echo "Container status:"
+            docker ps --filter name=obbinlog-ce-test || echo "Container not found"
+            
+            echo "Recent container logs (last 10 lines):"
+            docker logs --tail 10 obbinlog-ce-test 2>/dev/null || echo "No logs available yet"
+            
             if docker logs obbinlog-ce-test 2>/dev/null | grep -q "Container will keep running"; then
-              echo "Container is ready! (attempt $i/120)"
+              echo "✅ Container is ready! (attempt $i/120)"
               break
             fi
-            echo "Waiting for container to be ready... (attempt $i/120)"
+            
+            echo "⏳ Container not ready yet, waiting 5 seconds..."
+            echo "================================================"
             sleep 5
           done
           
-          echo "Checking container status..."
+          echo "Final container status:"
           docker ps
-          echo "Container logs:"
+          echo "Complete container logs:"
           docker logs obbinlog-ce-test
 
       - name: Install MySQL client
