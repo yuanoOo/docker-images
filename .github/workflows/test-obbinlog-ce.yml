@@ -52,17 +52,21 @@ jobs:
 
       - name: Save and upload x86_64 image
         run: |
+          # Check disk space before saving
+          echo "Checking disk space before saving..."
+          df -h
+          
           # Check if image exists
           echo "Checking for x86_64 image..."
           docker images | grep obbinlog-ce || echo "No obbinlog-ce images found"
           
-          # Save x86_64 image
-          echo "Saving x86_64 image..."
-          docker save obbinlog-ce:test-x86_64 | gzip > obbinlog-ce-x86_64.tar.gz
+          # Save x86_64 image with maximum compression
+          echo "Saving x86_64 image with maximum compression..."
+          docker save obbinlog-ce:test-x86_64 | gzip -9 > obbinlog-ce-x86_64.tar.gz
           
           # Verify saved file
           echo "Verifying saved file..."
-          ls -la obbinlog-ce-x86_64.tar.gz
+          ls -lh obbinlog-ce-x86_64.tar.gz
           
           # Create build info for x86_64
           echo "Build completed at: $(date)" > build-info-x86_64.txt
@@ -70,6 +74,7 @@ jobs:
           echo "Branch: ${{ github.ref }}" >> build-info-x86_64.txt
           echo "Commit: ${{ github.sha }}" >> build-info-x86_64.txt
           echo "Triggered by: ${{ github.event_name }}" >> build-info-x86_64.txt
+          echo "Image size: $(docker images --format 'table {{.Size}}' obbinlog-ce:test-x86_64 | tail -1)" >> build-info-x86_64.txt
           
           # Create x86_64 archive
           echo "Creating x86_64 archive..."
@@ -79,7 +84,7 @@ jobs:
           
           # Verify archive
           echo "Verifying archive..."
-          ls -la obbinlog-ce-x86_64-build.tar.gz
+          ls -lh obbinlog-ce-x86_64-build.tar.gz
 
       - name: Upload x86_64 artifacts
         uses: actions/upload-artifact@v4
@@ -90,17 +95,21 @@ jobs:
 
       - name: Save and upload ARM64 image
         run: |
+          # Check disk space before saving
+          echo "Checking disk space before saving..."
+          df -h
+          
           # Check if image exists
           echo "Checking for ARM64 image..."
           docker images | grep obbinlog-ce || echo "No obbinlog-ce images found"
           
-          # Save ARM64 image
-          echo "Saving ARM64 image..."
-          docker save obbinlog-ce:test-arm64 | gzip > obbinlog-ce-arm64.tar.gz
+          # Save ARM64 image with maximum compression
+          echo "Saving ARM64 image with maximum compression..."
+          docker save obbinlog-ce:test-arm64 | gzip -9 > obbinlog-ce-arm64.tar.gz
           
           # Verify saved file
           echo "Verifying saved file..."
-          ls -la obbinlog-ce-arm64.tar.gz
+          ls -lh obbinlog-ce-arm64.tar.gz
           
           # Create build info for ARM64
           echo "Build completed at: $(date)" > build-info-arm64.txt
@@ -108,6 +117,7 @@ jobs:
           echo "Branch: ${{ github.ref }}" >> build-info-arm64.txt
           echo "Commit: ${{ github.sha }}" >> build-info-arm64.txt
           echo "Triggered by: ${{ github.event_name }}" >> build-info-arm64.txt
+          echo "Image size: $(docker images --format 'table {{.Size}}' obbinlog-ce:test-arm64 | tail -1)" >> build-info-arm64.txt
           
           # Create ARM64 archive
           echo "Creating ARM64 archive..."
@@ -117,11 +127,19 @@ jobs:
           
           # Verify archive
           echo "Verifying archive..."
-          ls -la obbinlog-ce-arm64-build.tar.gz
+          ls -lh obbinlog-ce-arm64-build.tar.gz
 
       - name: Upload ARM64 artifacts
         uses: actions/upload-artifact@v4
         with:
           name: obbinlog-ce-arm64-${{ github.run_number }}
           path: obbinlog-ce-arm64-build.tar.gz
-          retention-days: 30 
+          retention-days: 30
+
+      - name: Cleanup after upload
+        if: always()
+        run: |
+          echo "Cleaning up Docker images to free space..."
+          docker rmi obbinlog-ce:test-x86_64 obbinlog-ce:test-arm64 || true
+          docker system prune -f || true
+          echo "Cleanup completed" 
