@@ -109,7 +109,7 @@ echo "Observer process status:"
 ps aux | grep observer || echo "Observer process not found"
 
 echo "Observer logs (last 300 lines):"
-tail -300 /home/admin/oceanbase/log/observer.log 2>/dev/null || echo "No observer log found"
+tail -300 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
 
 echo "Checking Observer connection..."
 if obclient -h127.0.0.1 -uroot -P $JDBC_PORT -e "SELECT 1;" 2>/dev/null; then
@@ -119,12 +119,20 @@ else
   sleep 30
   echo "Final Observer status check:"
   ps aux | grep observer || echo "Observer process not found"
-  tail -300 /home/admin/oceanbase/log/observer.log 2>/dev/null || echo "No observer log found"
+  tail -300 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
 fi
 
 # Step 9: Initialize OceanBase Cluster and Create Users
 # =============================================================================
 echo "Initializing OceanBase cluster and creating users..."
+
+# Check system resources before cluster initialization
+echo "Checking system resources before cluster initialization..."
+free -h
+df -h
+
+# Add error handling for cluster initialization
+set +e
 obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A <<EOF
 SET SESSION ob_query_timeout=1000000000;
 ALTER SYSTEM BOOTSTRAP ZONE "zone1" SERVER "127.0.0.1:${RPC_PORT}";
@@ -238,4 +246,15 @@ echo "Binlog created successfully for tenant '$TENANT_NAME'"
 # =============================================================================
 echo "OceanBase deployment completed successfully!"
 echo "Container will keep running..."
-/bin/sh -c 'while true;do sleep 1;done'
+
+# Check final system resources
+echo "Final system resources check:"
+free -h
+df -h
+
+# Keep container running with error handling
+set -e
+while true; do
+  echo "Container is running... $(date)"
+  sleep 30
+done
