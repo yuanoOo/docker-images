@@ -165,7 +165,7 @@ echo ""
 # 4. 创建proxyro用户
 echo "=== 步骤4: 创建proxyro用户 ==="
 echo "执行命令: CREATE USER proxyro IDENTIFIED BY \"$PASSWORD\";"
-proxyro_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "CREATE USER proxyro IDENTIFIED BY \"$PASSWORD\";" 2>&1)
+proxyro_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE USER proxyro IDENTIFIED BY \"$PASSWORD\";" 2>&1)
 proxyro_exit_code=$?
 echo "执行结果 (退出码: $proxyro_exit_code):"
 echo "$proxyro_result"
@@ -174,7 +174,7 @@ echo ""
 # 5. 授权proxyro用户
 echo "=== 步骤5: 授权proxyro用户 ==="
 echo "执行命令: GRANT SELECT ON *.* TO proxyro;"
-grant_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "GRANT SELECT ON *.* TO proxyro;" 2>&1)
+grant_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "GRANT SELECT ON *.* TO proxyro;" 2>&1)
 grant_exit_code=$?
 echo "执行结果 (退出码: $grant_exit_code):"
 echo "$grant_result"
@@ -183,7 +183,7 @@ echo ""
 # 6. 创建资源单元
 echo "=== 步骤6: 创建资源单元 ==="
 echo "执行命令: CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"2G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;"
-unit_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"2G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;" 2>&1)
+unit_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"2G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;" 2>&1)
 unit_exit_code=$?
 echo "执行结果 (退出码: $unit_exit_code):"
 echo "$unit_result"
@@ -192,7 +192,7 @@ echo ""
 # 7. 创建资源池
 echo "=== 步骤7: 创建资源池 ==="
 echo "执行命令: CREATE RESOURCE POOL rs_pool_1 UNIT=\"unit_cf_min\", UNIT_NUM=1, ZONE_LIST=(\"zone1\");"
-pool_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "CREATE RESOURCE POOL rs_pool_1 UNIT=\"unit_cf_min\", UNIT_NUM=1, ZONE_LIST=(\"zone1\");" 2>&1)
+pool_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE RESOURCE POOL rs_pool_1 UNIT=\"unit_cf_min\", UNIT_NUM=1, ZONE_LIST=(\"zone1\");" 2>&1)
 pool_exit_code=$?
 echo "执行结果 (退出码: $pool_exit_code):"
 echo "$pool_result"
@@ -201,7 +201,7 @@ echo ""
 # 8. 创建租户
 echo "=== 步骤8: 创建租户 ==="
 echo "执行命令: CREATE TENANT IF NOT EXISTS $TENANT_NAME PRIMARY_ZONE=\"zone1\", RESOURCE_POOL_LIST=(\"rs_pool_1\") set OB_TCP_INVITED_NODES=\"%\", lower_case_table_names = 1;"
-tenant_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "CREATE TENANT IF NOT EXISTS $TENANT_NAME PRIMARY_ZONE=\"zone1\", RESOURCE_POOL_LIST=(\"rs_pool_1\") set OB_TCP_INVITED_NODES=\"%\", lower_case_table_names = 1;" 2>&1)
+tenant_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE TENANT IF NOT EXISTS $TENANT_NAME PRIMARY_ZONE=\"zone1\", RESOURCE_POOL_LIST=(\"rs_pool_1\") set OB_TCP_INVITED_NODES=\"%\", lower_case_table_names = 1;" 2>&1)
 tenant_exit_code=$?
 echo "执行结果 (退出码: $tenant_exit_code):"
 echo "$tenant_result"
