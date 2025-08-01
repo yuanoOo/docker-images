@@ -101,7 +101,26 @@ EOF
 # Step 8: Wait for Observer to Start
 # =============================================================================
 echo "Waiting for Observer to start..."
-sleep 5
+echo "Sleeping for 120 seconds to allow Observer to start..."
+sleep 120
+
+echo "Checking Observer status after sleep..."
+echo "Observer process status:"
+ps aux | grep observer || echo "Observer process not found"
+
+echo "Observer logs (last 300 lines):"
+tail -300 /home/admin/oceanbase/log/observer.log 2>/dev/null || echo "No observer log found"
+
+echo "Checking Observer connection..."
+if obclient -h127.0.0.1 -uroot -P $JDBC_PORT -e "SELECT 1;" 2>/dev/null; then
+  echo "Observer is ready!"
+else
+  echo "Observer not ready yet, waiting additional 30 seconds..."
+  sleep 30
+  echo "Final Observer status check:"
+  ps aux | grep observer || echo "Observer process not found"
+  tail -300 /home/admin/oceanbase/log/observer.log 2>/dev/null || echo "No observer log found"
+fi
 
 # Step 9: Initialize OceanBase Cluster and Create Users
 # =============================================================================
