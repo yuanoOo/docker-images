@@ -110,13 +110,13 @@ jobs:
           echo "Testing sys tenant connection..."
           mysql -h127.0.0.1 -P2881 -uroot -p123456 -e "SHOW DATABASES;"
           
-          # Test test tenant connection
-          echo "Testing test tenant connection..."
-          mysql -h127.0.0.1 -P2881 -uroot@test -p123456 -e "SHOW DATABASES;"
+          # Test test tenant connection via OBProxy (port 2883)
+          echo "Testing test tenant connection via OBProxy..."
+          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "SHOW DATABASES;"
           
-          # Test basic SQL operations
-          echo "Testing basic SQL operations..."
-          mysql -h127.0.0.1 -P2881 -uroot@test -p123456 -e "
+          # Test basic SQL operations via OBProxy
+          echo "Testing basic SQL operations via OBProxy..."
+          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             CREATE DATABASE IF NOT EXISTS test_db;
             USE test_db;
             CREATE TABLE IF NOT EXISTS test_table (id INT, name VARCHAR(50));

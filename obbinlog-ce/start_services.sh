@@ -167,9 +167,20 @@ echo "Tenant '$TENANT_NAME' created successfully"
 # Step 10: Configure Tenant User Password
 # =============================================================================
 echo "Configuring tenant user password..."
+echo "Setting password for root user in tenant '$TENANT_NAME'..."
 obclient -h127.0.0.1 -uroot@$TENANT_NAME -P ${JDBC_PORT} -A <<EOF
 alter user root identified by "$PASSWORD";
 EOF
+
+# Verify password was set successfully
+echo "Verifying password was set successfully for tenant '$TENANT_NAME'..."
+if obclient -h127.0.0.1 -uroot@$TENANT_NAME -P ${JDBC_PORT} -p$PASSWORD -e "SELECT 1;" 2>/dev/null; then
+  echo "✅ Password for tenant '$TENANT_NAME' was set successfully"
+else
+  echo "❌ Failed to verify password for tenant '$TENANT_NAME'"
+  echo "Attempting to check tenant status..."
+  obclient -h127.0.0.1 -uroot -P ${JDBC_PORT} -e "SHOW TENANTS;" || echo "Failed to show tenants"
+fi
 
 # Step 11: Start OBProxy Service
 # =============================================================================
