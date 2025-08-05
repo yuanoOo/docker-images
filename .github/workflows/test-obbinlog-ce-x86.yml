@@ -81,6 +81,50 @@ jobs:
           echo "Complete container logs:"
           docker logs obbinlog-ce-test
 
+      - name: Extract observer.log
+        run: |
+          echo "Extracting observer.log from container..."
+          
+          # Create logs directory
+          mkdir -p logs
+          
+          # Copy observer.log from container
+          if docker cp obbinlog-ce-test:/home/admin/oceanbase/store/test/log/observer.log logs/observer.log 2>/dev/null; then
+            echo "✅ Successfully extracted observer.log"
+            echo "Observer log file size:"
+            ls -lh logs/observer.log
+            echo "Last 50 lines of observer.log:"
+            tail -50 logs/observer.log || echo "No observer.log content"
+          else
+            echo "❌ Failed to extract observer.log"
+            echo "Container filesystem check:"
+            docker exec obbinlog-ce-test ls -la /home/admin/oceanbase/store/test/log/ 2>/dev/null || echo "Cannot access log directory"
+            
+            # Create a placeholder file with error message
+            echo "Failed to extract observer.log from container" > logs/observer.log
+            echo "Container logs:" >> logs/observer.log
+            docker logs obbinlog-ce-test >> logs/observer.log 2>&1 || echo "No container logs available" >> logs/observer.log
+          fi
+          
+          # Also extract other relevant logs
+          echo "Extracting additional log files..."
+          docker exec obbinlog-ce-test find /home/admin/oceanbase/store/test/log/ -name "*.log" -type f 2>/dev/null | while read logfile; do
+            if [ -n "$logfile" ]; then
+              echo "Copying: $logfile"
+              docker cp "obbinlog-ce-test:$logfile" "logs/$(basename $logfile)" 2>/dev/null || echo "Failed to copy $logfile"
+            fi
+          done
+          
+          echo "Available log files:"
+          ls -la logs/ || echo "No log files found"
+
+      - name: Upload observer.log as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: observer-logs
+          path: logs/
+          retention-days: 30
+
       - name: Install MySQL client
         run: |
           echo "Installing MySQL client..."
