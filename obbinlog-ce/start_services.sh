@@ -310,12 +310,38 @@ EOF
 
 # Step 16: Create Binlog for Tenant
 # =============================================================================
-echo "Creating binlog for tenant..."
+echo "为租户创建 Binlog..."
+echo "等待 20 秒后执行..."
 sleep 20
-obclient -A -c -h 127.0.0.1 -P2983 <<EOF
+
+echo "执行命令: obclient -A -c -h 127.0.0.1 -P2983"
+
+# 创建临时文件来存储SQL命令
+cat > /tmp/create_binlog.sql <<EOF
 CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}";
 EOF
-echo "Binlog created successfully for tenant '$TENANT_NAME'"
+
+echo "SQL命令内容:"
+cat /tmp/create_binlog.sql
+
+# 执行命令并捕获输出
+echo "执行创建 Binlog 命令..."
+create_binlog_result=$(obclient -A -c -h 127.0.0.1 -P2983 < /tmp/create_binlog.sql 2>&1)
+create_binlog_exit_code=$?
+
+echo "创建 Binlog 命令执行结果 (退出码: $create_binlog_exit_code):"
+echo "$create_binlog_result"
+
+if [ $create_binlog_exit_code -eq 0 ]; then
+    echo "✅ 为租户 '$TENANT_NAME' 创建 Binlog 成功"
+    echo "Binlog created successfully for tenant '$TENANT_NAME'"
+else
+    echo "❌ 为租户 '$TENANT_NAME' 创建 Binlog 失败，退出码: $create_binlog_exit_code"
+    echo "错误详情: $create_binlog_result"
+fi
+
+# 清理临时文件
+rm -f /tmp/create_binlog.sql
 
 # Step 17: Keep Container Running
 # =============================================================================
