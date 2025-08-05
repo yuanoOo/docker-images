@@ -133,16 +133,18 @@ jobs:
           echo "1. Waiting for binlog service to be ready..."
           sleep 30
           
-          # Check binlog service status
-          echo "2. Checking binlog service status..."
+          # Check initial binlog status
+          echo "2. Checking initial binlog status..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             SHOW VARIABLES LIKE 'log_bin';
             SHOW VARIABLES LIKE 'binlog_format';
-          " || echo "Basic binlog variables check completed"
+            SHOW BINARY LOGS;
+          "
           
-          # Test direct connection to binlog service (port 2983)
-          echo "3. Testing direct connection to binlog service..."
-          mysql -h127.0.0.1 -P2983 -uroot@test -p123456 -e "SELECT 1;" || echo "Direct binlog connection test completed"
+          # Get initial binlog position
+          echo "3. Getting initial binlog position..."
+          INITIAL_POSITION=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
+          echo "Initial binlog position: $INITIAL_POSITION"
           
           # Create test database and table for binlog testing
           echo "4. Creating test database and table for binlog testing..."
@@ -156,64 +158,59 @@ jobs:
             );
           "
           
-          # Test basic DML operations
-          echo "5. Testing DML operations for binlog..."
+          # Get position before insert
+          echo "5. Getting binlog position before insert..."
+          POS_BEFORE_INSERT=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
+          echo "Position before insert: $POS_BEFORE_INSERT"
+          
+          # Insert test data
+          echo "6. Inserting test data to generate binlog events..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             USE binlog_test_db;
             INSERT INTO binlog_test_table (name) VALUES ('test_binlog_1');
             INSERT INTO binlog_test_table (name) VALUES ('test_binlog_2');
             INSERT INTO binlog_test_table (name) VALUES ('test_binlog_3');
-            SELECT * FROM binlog_test_table;
+          "
+          
+          # Get position after insert
+          echo "7. Getting binlog position after insert..."
+          POS_AFTER_INSERT=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
+          echo "Position after insert: $POS_AFTER_INSERT"
+          
+          # Check if position changed
+          if [ "$POS_BEFORE_INSERT" != "$POS_AFTER_INSERT" ]; then
+            echo "✅ Binlog position changed successfully!"
+            echo "Position change: $POS_BEFORE_INSERT -> $POS_AFTER_INSERT"
+          else
+            echo "❌ Binlog position did not change!"
+            exit 1
+          fi
+          
+          # Show binlog events
+          echo "8. Showing binlog events..."
+          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
+            SHOW BINLOG EVENTS;
           "
           
           # Test DDL operations
-          echo "6. Testing DDL operations for binlog..."
+          echo "9. Testing DDL operations for binlog..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             USE binlog_test_db;
             ALTER TABLE binlog_test_table ADD COLUMN description TEXT;
             UPDATE binlog_test_table SET description = 'updated description' WHERE id = 1;
             DELETE FROM binlog_test_table WHERE id = 3;
-            SELECT * FROM binlog_test_table;
           "
           
-          # Test binlog-related commands (OceanBase specific)
-          echo "7. Testing OceanBase binlog commands..."
-          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
-            SHOW VARIABLES LIKE '%binlog%';
-            SHOW VARIABLES LIKE '%log%';
-          " || echo "Binlog variables check completed"
+          # Get final position
+          echo "10. Getting final binlog position..."
+          FINAL_POSITION=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
+          echo "Final binlog position: $FINAL_POSITION"
           
-          # Test binlog service connection via OBProxy
-          echo "8. Testing binlog service via OBProxy..."
+          # Show final binlog events
+          echo "11. Showing final binlog events..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
-            SHOW DATABASES;
-            USE binlog_test_db;
-            SHOW TABLES;
+            SHOW BINLOG EVENTS;
           "
-          
-          # Test transaction operations
-          echo "9. Testing transaction operations for binlog..."
-          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
-            USE binlog_test_db;
-            START TRANSACTION;
-            INSERT INTO binlog_test_table (name, description) VALUES ('transaction_test', 'test transaction');
-            COMMIT;
-            SELECT * FROM binlog_test_table WHERE name = 'transaction_test';
-          "
-          
-          # Test binlog service availability
-          echo "10. Testing binlog service availability..."
-          if mysql -h127.0.0.1 -P2983 -uroot@test -p123456 -e "SELECT 1;" 2>/dev/null; then
-            echo "✅ Binlog service is available on port 2983"
-          else
-            echo "⚠️  Binlog service not available on port 2983, but continuing with proxy tests"
-          fi
-          
-          # Test OBProxy binlog configuration
-          echo "11. Testing OBProxy binlog configuration..."
-          mysql -h127.0.0.1 -P2883 -uroot@sys -p123456 -e "
-            SHOW PROXYCONFIG LIKE '%binlog%';
-          " || echo "OBProxy binlog config check completed"
           
           # Cleanup test database
           echo "12. Cleaning up test database..."
