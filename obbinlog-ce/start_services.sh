@@ -28,7 +28,7 @@ PASSWORD_SHA1=$(echo -n "$PASSWORD" | sha1sum | cut -d' ' -f1)  # SHA1 hash for 
 
 # Step 3.1: Storage Configuration
 # =============================================================================
-DATAFILE_SIZE=${DATAFILE_SIZE:-"2G"}        # Data file size (configurable via Docker env)
+DATAFILE_SIZE=${DATAFILE_SIZE:-"5G"}        # Data file size (configurable via Docker env)
 LOG_DISK_SIZE=${LOG_DISK_SIZE:-"4G"}        # Log disk size (configurable via Docker env)
 
 # Step 4: Display Configuration Information
