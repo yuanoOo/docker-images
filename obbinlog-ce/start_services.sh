@@ -132,98 +132,37 @@ free -h
 df -h
 
 # Add error handling for cluster initialization
-set +e
-echo "开始分步执行集群初始化命令..."
+# set +e
+obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A <<EOF
+SET SESSION ob_query_timeout=1000000000;
+ALTER SYSTEM BOOTSTRAP ZONE "zone1" SERVER "127.0.0.1:${RPC_PORT}";
+alter user root identified by "$PASSWORD";
+CREATE USER proxyro IDENTIFIED BY "$PASSWORD";
+GRANT SELECT ON *.* TO proxyro;
 
-# 1. 设置会话超时
-echo "=== 步骤1: 设置会话超时 ==="
-echo "执行命令: SET SESSION ob_query_timeout=1000000000;"
-timeout_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "SET SESSION ob_query_timeout=1000000000;" 2>&1)
-timeout_exit_code=$?
-echo "执行结果 (退出码: $timeout_exit_code):"
-echo "$timeout_result"
-echo ""
+# Create resource unit for tenant
+CREATE RESOURCE UNIT unit_cf_min
+    MEMORY_SIZE = "5G",
+    MAX_CPU = 1, MIN_CPU = 1,
+    LOG_DISK_SIZE = "2G",
+    MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;
 
-# 2. 初始化集群
-echo "=== 步骤2: 初始化集群 ==="
-echo "执行命令: ALTER SYSTEM BOOTSTRAP ZONE \"zone1\" SERVER \"127.0.0.1:${RPC_PORT}\";"
-bootstrap_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "ALTER SYSTEM BOOTSTRAP ZONE \"zone1\" SERVER \"127.0.0.1:${RPC_PORT}\";" 2>&1)
-bootstrap_exit_code=$?
-echo "执行结果 (退出码: $bootstrap_exit_code):"
-echo "$bootstrap_result"
-echo ""
+# Create resource pool
+CREATE RESOURCE POOL rs_pool_1
+    UNIT="unit_cf_min",
+    UNIT_NUM=1,
+    ZONE_LIST=("zone1");
 
-# 3. 设置root用户密码
-echo "=== 步骤3: 设置root用户密码 ==="
-echo "执行命令: alter user root identified by \"$PASSWORD\";"
-root_password_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "alter user root identified by \"$PASSWORD\";" 2>&1)
-root_password_exit_code=$?
-echo "执行结果 (退出码: $root_password_exit_code):"
-echo "$root_password_result"
-echo ""
+# Create tenant
+CREATE TENANT IF NOT EXISTS $TENANT_NAME
+    PRIMARY_ZONE="zone1",
+    RESOURCE_POOL_LIST=("rs_pool_1")
+    set OB_TCP_INVITED_NODES="%",
+    lower_case_table_names = 1;
 
-# 4. 创建proxyro用户
-echo "=== 步骤4: 创建proxyro用户 ==="
-echo "执行命令: CREATE USER proxyro IDENTIFIED BY \"$PASSWORD\";"
-proxyro_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE USER proxyro IDENTIFIED BY \"$PASSWORD\";" 2>&1)
-proxyro_exit_code=$?
-echo "执行结果 (退出码: $proxyro_exit_code):"
-echo "$proxyro_result"
-echo ""
+EOF
 
-# 5. 授权proxyro用户
-echo "=== 步骤5: 授权proxyro用户 ==="
-echo "执行命令: GRANT SELECT ON *.* TO proxyro;"
-grant_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "GRANT SELECT ON *.* TO proxyro;" 2>&1)
-grant_exit_code=$?
-echo "执行结果 (退出码: $grant_exit_code):"
-echo "$grant_result"
-echo ""
-
-# 6. 创建资源单元
-echo "=== 步骤6: 创建资源单元 ==="
-echo "执行命令: CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"5G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;"
-unit_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"2G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;" 2>&1)
-unit_exit_code=$?
-echo "执行结果 (退出码: $unit_exit_code):"
-echo "$unit_result"
-echo ""
-
-# 7. 创建资源池
-echo "=== 步骤7: 创建资源池 ==="
-echo "执行命令: CREATE RESOURCE POOL rs_pool_1 UNIT=\"unit_cf_min\", UNIT_NUM=1, ZONE_LIST=(\"zone1\");"
-pool_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE RESOURCE POOL rs_pool_1 UNIT=\"unit_cf_min\", UNIT_NUM=1, ZONE_LIST=(\"zone1\");" 2>&1)
-pool_exit_code=$?
-echo "执行结果 (退出码: $pool_exit_code):"
-echo "$pool_result"
-echo ""
-
-# 8. 创建租户
-echo "=== 步骤8: 创建租户 ==="
-echo "执行命令: CREATE TENANT IF NOT EXISTS $TENANT_NAME PRIMARY_ZONE=\"zone1\", RESOURCE_POOL_LIST=(\"rs_pool_1\") set OB_TCP_INVITED_NODES=\"%\", lower_case_table_names = 1;"
-tenant_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE TENANT IF NOT EXISTS $TENANT_NAME PRIMARY_ZONE=\"zone1\", RESOURCE_POOL_LIST=(\"rs_pool_1\") set OB_TCP_INVITED_NODES=\"%\", lower_case_table_names = 1;" 2>&1)
-tenant_exit_code=$?
-echo "执行结果 (退出码: $tenant_exit_code):"
-echo "$tenant_result"
-echo ""
-
-# 总结执行结果
-echo "=== 集群初始化执行总结 ==="
-if [ $timeout_exit_code -eq 0 ] && [ $bootstrap_exit_code -eq 0 ] && [ $root_password_exit_code -eq 0 ] && [ $proxyro_exit_code -eq 0 ] && [ $grant_exit_code -eq 0 ] && [ $unit_exit_code -eq 0 ] && [ $pool_exit_code -eq 0 ] && [ $tenant_exit_code -eq 0 ]; then
-    echo "✅ 所有步骤执行成功"
-    echo "Tenant '$TENANT_NAME' created successfully"
-else
-    echo "❌ 部分步骤执行失败"
-    echo "步骤1(设置超时): $timeout_exit_code"
-    echo "步骤2(初始化集群): $bootstrap_exit_code"
-    echo "步骤3(设置root密码): $root_password_exit_code"
-    echo "步骤4(创建proxyro用户): $proxyro_exit_code"
-    echo "步骤5(授权proxyro): $grant_exit_code"
-    echo "步骤6(创建资源单元): $unit_exit_code"
-    echo "步骤7(创建资源池): $pool_exit_code"
-    echo "步骤8(创建租户): $tenant_exit_code"
-fi
-echo ""
+echo "Tenant '$TENANT_NAME' created successfully"
 
 # Step 10: Configure Tenant User Password
 # =============================================================================
