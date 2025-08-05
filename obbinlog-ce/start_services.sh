@@ -94,7 +94,7 @@ cd /home/admin/oceanbase/store/$CLUSTER_NAME/ && $OBSERVER_PATCHED \
     -n $CLUSTER_NAME \
     -d /home/admin/oceanbase/store/$CLUSTER_NAME/ \
     -c 1000 \
-    -o "memory_limit=6G,__min_full_resource_pool_memory=1073741824,system_memory=1G,datafile_size=$DATAFILE_SIZE,max_syslog_file_count=2,log_disk_size=$LOG_DISK_SIZE,obconfig_url=http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=$CLUSTER_NAME"
+    -o "memory_limit=10G,__min_full_resource_pool_memory=1073741824,system_memory=1G,datafile_size=$DATAFILE_SIZE,max_syslog_file_count=2,log_disk_size=$LOG_DISK_SIZE,obconfig_url=http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=$CLUSTER_NAME"
 
 EOF
 
@@ -182,7 +182,7 @@ echo ""
 
 # 6. 创建资源单元
 echo "=== 步骤6: 创建资源单元 ==="
-echo "执行命令: CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"3G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;"
+echo "执行命令: CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"5G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;"
 unit_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"2G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;" 2>&1)
 unit_exit_code=$?
 echo "执行结果 (退出码: $unit_exit_code):"
