@@ -182,7 +182,7 @@ echo ""
 
 # 6. 创建资源单元
 echo "=== 步骤6: 创建资源单元 ==="
-echo "执行命令: CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"5G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;"
+echo "执行命令: CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"3G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;"
 unit_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -p$PASSWORD -A -e "CREATE RESOURCE UNIT unit_cf_min MEMORY_SIZE = \"2G\", MAX_CPU = 1, MIN_CPU = 1, LOG_DISK_SIZE = \"2G\", MAX_IOPS = 10000, MIN_IOPS = 10000, IOPS_WEIGHT=1;" 2>&1)
 unit_exit_code=$?
 echo "执行结果 (退出码: $unit_exit_code):"
