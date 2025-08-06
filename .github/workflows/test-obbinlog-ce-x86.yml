@@ -319,6 +319,72 @@ jobs:
           echo "Container inspection:"
           docker inspect obbinlog-ce-test 2>/dev/null | jq '.[0].State' 2>/dev/null || echo "Cannot inspect container"
 
+      - name: Collect and package logs
+        if: always()
+        run: |
+          echo "=== Collecting Logs ==="
+          
+          # Create logs directory
+          mkdir -p logs
+          
+          # Get container logs
+          echo "Collecting container logs..."
+          docker logs obbinlog-ce-test > logs/container.log 2>&1 || echo "Container logs not available" > logs/container.log
+          
+          # Try to copy observer logs from container
+          echo "Collecting observer logs..."
+          docker cp obbinlog-ce-test:/home/admin/oceanbase/store/test/log/observer.log logs/observer.log 2>/dev/null || echo "Observer logs not available" > logs/observer.log
+          
+          # Try to copy binlog logs from container
+          echo "Collecting binlog logs..."
+          docker cp obbinlog-ce-test:/home/ds/oblogproxy/log/oblogproxy.log logs/binlog.log 2>/dev/null || echo "Binlog logs not available" > logs/binlog.log
+          
+          # Try to copy deploy logs
+          echo "Collecting deploy logs..."
+          docker cp obbinlog-ce-test:/home/ds/oblogproxy/log/deploy.log logs/deploy.log 2>/dev/null || echo "Deploy logs not available" > logs/deploy.log
+          
+          # Get system information
+          echo "Collecting system information..."
+          echo "=== System Information ===" > logs/system_info.log
+          echo "Date: $(date)" >> logs/system_info.log
+          echo "Container Status:" >> logs/system_info.log
+          docker ps -a --filter name=obbinlog-ce-test >> logs/system_info.log 2>&1
+          echo "" >> logs/system_info.log
+          echo "System Resources:" >> logs/system_info.log
+          free -h >> logs/system_info.log 2>&1
+          df -h >> logs/system_info.log 2>&1
+          echo "" >> logs/system_info.log
+          echo "Docker System Info:" >> logs/system_info.log
+          docker system df >> logs/system_info.log 2>&1
+          
+          # List all collected logs
+          echo "Collected logs:"
+          ls -la logs/
+          
+          # Create a summary file
+          echo "=== Log Collection Summary ===" > logs/summary.txt
+          echo "Collection time: $(date)" >> logs/summary.txt
+          echo "Container name: obbinlog-ce-test" >> logs/summary.txt
+          echo "" >> logs/summary.txt
+          echo "Files collected:" >> logs/summary.txt
+          ls -la logs/ | grep -v "^total" >> logs/summary.txt
+          echo "" >> logs/summary.txt
+          echo "File sizes:" >> logs/summary.txt
+          for file in logs/*; do
+            if [ -f "$file" ]; then
+              size=$(wc -c < "$file")
+              echo "$(basename "$file"): ${size} bytes" >> logs/summary.txt
+            fi
+          done
+
+      - name: Upload logs as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obbinlog-ce-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 30
+
       - name: Cleanup
         if: always()
         run: |
