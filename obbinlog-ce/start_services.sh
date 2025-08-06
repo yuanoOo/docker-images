@@ -321,9 +321,17 @@ echo "Observer process status:"
 ps aux | grep observer || echo "Observer process not found"
 
 # Execute CREATE BINLOG with timeout and detailed logging
-timeout 10 obclient -A -c -h 127.0.0.1 -P2983 <<EOF
-CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}";
-EOF
+#timeout 10 obclient -A -c -h 127.0.0.1 -P2983 <<EOF
+#CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}";
+#EOF
+
+echo "=== Execute CREATE BINLOG with timeout and detailed logging ==="
+echo "执行命令: "
+proxyro_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
+proxyro_exit_code=$?
+echo "执行结果 (退出码: $proxyro_exit_code):"
+echo "$proxyro_result"
+echo ""
 
 CREATE_BINLOG_EXIT_CODE=$?
 echo "CREATE BINLOG command exit code: $CREATE_BINLOG_EXIT_CODE"
