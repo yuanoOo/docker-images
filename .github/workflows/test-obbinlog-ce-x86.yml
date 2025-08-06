@@ -48,8 +48,13 @@ jobs:
       - name: Start obbinlog-ce container
         run: |
           echo "Starting obbinlog-ce container..."
+          
+          # Set container resource limits to prevent OOM
           docker run -d \
             --name obbinlog-ce-test \
+            --memory=8g \
+            --memory-swap=8g \
+            --cpus=4 \
             -p 2881:2881 \
             -p 2883:2883 \
             -e CLUSTER_NAME=test \
@@ -58,17 +63,69 @@ jobs:
             obbinlog-ce:test-x86_64
           
           echo "Waiting for container to start and be ready..."
+          
+          # Start background monitoring
+          (
+            while true; do
+              if docker ps --filter name=obbinlog-ce-test --format "{{.Names}}" | grep -q "obbinlog-ce-test"; then
+                echo "=== Container Resource Monitor $(date) ==="
+                docker stats --no-stream obbinlog-ce-test 2>/dev/null || echo "Cannot get container stats"
+                echo "=========================================="
+              else
+                echo "❌ Container stopped - collecting diagnostic info..."
+                echo "Container exit status:"
+                docker ps -a --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}\t{{.ExitCode}}"
+                echo "Container logs:"
+                docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available"
+                echo "System resources:"
+                free -h
+                df -h
+                echo "Docker system info:"
+                docker system df
+                break
+              fi
+              sleep 30
+            done
+          ) &
+          MONITOR_PID=$!
+          
           for i in {1..120}; do
             echo "=== Container startup check (attempt $i/120) ==="
             echo "Container status:"
             docker ps --filter name=obbinlog-ce-test || echo "Container not found"
+            
+            # Check if container is still running
+            if ! docker ps --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}" | grep -q "obbinlog-ce-test"; then
+              echo "❌ Container has stopped unexpectedly!"
+              echo "Container logs before stopping:"
+              docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available"
+              echo "System resources at container stop:"
+              docker stats --no-stream obbinlog-ce-test 2>/dev/null || echo "Cannot get container stats"
+              
+              # Kill background monitor
+              kill $MONITOR_PID 2>/dev/null || true
+              exit 1
+            fi
             
             echo "Complete container logs:"
             docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available yet"
             
             if docker logs obbinlog-ce-test 2>/dev/null | grep -q "Container will keep running"; then
               echo "✅ Container is ready! (attempt $i/120)"
+              # Kill background monitor
+              kill $MONITOR_PID 2>/dev/null || true
               break
+            fi
+            
+            # Check for error patterns in logs
+            if docker logs obbinlog-ce-test 2>/dev/null | grep -q "ERROR\|FATAL\|Killed\|Out of memory\|OOM"; then
+              echo "❌ Container encountered an error!"
+              echo "Error logs:"
+              docker logs obbinlog-ce-test 2>/dev/null | grep -i "error\|fatal\|killed\|out of memory\|oom" || echo "No specific error found"
+              
+              # Kill background monitor
+              kill $MONITOR_PID 2>/dev/null || true
+              exit 1
             fi
             
             echo "⏳ Container not ready yet, waiting 5 seconds..."
@@ -220,11 +277,31 @@ jobs:
           
           echo "✅ Binlog testing completed successfully!"
 
-      - name: Check container logs
+      - name: Check container logs and diagnose issues
         if: always()
         run: |
+          echo "=== Container Diagnostics ==="
+          echo "Container status:"
+          docker ps -a --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}\t{{.ExitCode}}\t{{.CreatedAt}}"
+          
           echo "Container logs:"
-          docker logs obbinlog-ce-test
+          docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available"
+          
+          echo "Container resource usage (if available):"
+          docker stats --no-stream obbinlog-ce-test 2>/dev/null || echo "Cannot get container stats"
+          
+          echo "System resources:"
+          free -h
+          df -h
+          
+          echo "Docker system info:"
+          docker system df
+          
+          echo "Recent Docker events:"
+          docker events --since 10m --until now --filter container=obbinlog-ce-test 2>/dev/null || echo "No recent events"
+          
+          echo "Container inspection:"
+          docker inspect obbinlog-ce-test 2>/dev/null | jq '.[0].State' 2>/dev/null || echo "Cannot inspect container"
 
       - name: Cleanup
         if: always()

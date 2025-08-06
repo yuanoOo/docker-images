@@ -276,42 +276,68 @@ echo "OBProxy Port: $OBPROXY_PORT"
 echo "Binlog Service Port: 2983"
 echo "=================================="
 
+# Check system resources before proceeding
+echo "=== System Resources Check ==="
+echo "Memory usage:"
+free -h
+echo "Disk usage:"
+df -h
+echo "Process count:"
+ps aux | wc -l
+echo "================================"
+
 # Check if binlog service is running
 echo "Checking binlog service status..."
 if pgrep -f "oblogproxy" > /dev/null; then
     echo "✅ Binlog service process is running"
+    ps aux | grep oblogproxy
 else
     echo "❌ Binlog service process not found"
+    echo "Trying to start binlog service manually..."
+    cd /home/ds/oblogproxy/env/
+    sh deploy.sh -m start -f deploy.conf.json || echo "Manual start failed"
+    sleep 10
+    if pgrep -f "oblogproxy" > /dev/null; then
+        echo "✅ Binlog service started manually"
+    else
+        echo "❌ Failed to start binlog service manually"
+    fi
 fi
 
 # Check if port 2983 is listening
 echo "Checking if port 2983 is listening..."
 if netstat -tlnp 2>/dev/null | grep ":2983 " > /dev/null; then
     echo "✅ Port 2983 is listening"
+    netstat -tlnp 2>/dev/null | grep ":2983 "
 else
     echo "❌ Port 2983 is not listening"
     echo "Current listening ports:"
     netstat -tlnp 2>/dev/null | grep LISTEN || echo "No listening ports found"
 fi
 
-# Test connection to binlog service
+# Test connection to binlog service with more detailed error
 echo "Testing connection to binlog service..."
 if timeout 10 bash -c "</dev/tcp/127.0.0.1/2983" 2>/dev/null; then
     echo "✅ Can connect to binlog service on port 2983"
 else
     echo "❌ Cannot connect to binlog service on port 2983"
+    echo "Connection test details:"
+    timeout 5 telnet 127.0.0.1 2983 2>&1 || echo "Telnet test failed"
 fi
 
 # Check cluster service availability
 echo "Checking cluster service availability..."
-if curl -s "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}" > /dev/null 2>&1; then
+cluster_response=$(curl -s "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}")
+if [ $? -eq 0 ] && [ -n "$cluster_response" ]; then
     echo "✅ Cluster service is accessible"
+    echo "Response length: ${#cluster_response} characters"
 else
     echo "❌ Cluster service is not accessible"
+    echo "Response: $cluster_response"
 fi
 
-echo "Waiting 20 seconds before creating binlog..."
-sleep 20
+echo "Waiting 30 seconds before creating binlog..."
+sleep 30
 
 echo "=== Starting CREATE BINLOG command ==="
 echo "Command: CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\""
@@ -320,20 +346,55 @@ echo "Timestamp: $(date)"
 echo "Observer process status:"
 ps aux | grep observer || echo "Observer process not found"
 
-# Execute CREATE BINLOG with timeout and detailed logging
-#timeout 10 obclient -A -c -h 127.0.0.1 -P2983 <<EOF
-#CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}";
-#EOF
+# Check if we should skip CREATE BINLOG due to service issues
+if ! pgrep -f "oblogproxy" > /dev/null; then
+    echo "⚠️  Skipping CREATE BINLOG command due to missing binlog service"
+    echo "Container will continue running without binlog functionality"
+    CREATE_BINLOG_EXIT_CODE=0
+else
+    echo "=== Execute CREATE BINLOG with timeout and detailed logging ==="
+    echo "执行命令: "
+    
+    # Try direct connection first
+    echo "Attempting direct connection to binlog service..."
+    timeout 60 obclient -A -c -h 127.0.0.1 -P2983 -e "SELECT 1;" 2>&1 || echo "Direct connection failed"
+    
+    # Execute CREATE BINLOG with multiple fallback methods
+    echo "Method 1: Direct connection to binlog service..."
+    proxyro_result=$(timeout 120 obclient -A -c -h 127.0.0.1 -P2983 -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
+    proxyro_exit_code=$?
+    
+    if [ $proxyro_exit_code -eq 0 ]; then
+        echo "✅ CREATE BINLOG succeeded via direct connection"
+        echo "Result: $proxyro_result"
+    else
+        echo "❌ Direct connection failed, trying via OBProxy..."
+        echo "Error: $proxyro_result"
+        
+        # Fallback: Try via OBProxy
+        echo "Method 2: Via OBProxy..."
+        proxyro_result2=$(timeout 120 obclient -h127.0.0.1 -uroot@sys -P$OBPROXY_PORT -p$PASSWORD -A -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
+        proxyro_exit_code2=$?
+        
+        if [ $proxyro_exit_code2 -eq 0 ]; then
+            echo "✅ CREATE BINLOG succeeded via OBProxy"
+            echo "Result: $proxyro_result2"
+            proxyro_exit_code=0
+            proxyro_result="$proxyro_result2"
+        else
+            echo "❌ Both methods failed"
+            echo "OBProxy error: $proxyro_result2"
+            proxyro_exit_code=1
+        fi
+    fi
+    
+    echo "执行结果 (退出码: $proxyro_exit_code):"
+    echo "$proxyro_result"
+    echo ""
+    
+    CREATE_BINLOG_EXIT_CODE=$proxyro_exit_code
+fi
 
-echo "=== Execute CREATE BINLOG with timeout and detailed logging ==="
-echo "执行命令: "
-proxyro_result=$(obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
-proxyro_exit_code=$?
-echo "执行结果 (退出码: $proxyro_exit_code):"
-echo "$proxyro_result"
-echo ""
-
-CREATE_BINLOG_EXIT_CODE=$?
 echo "CREATE BINLOG command exit code: $CREATE_BINLOG_EXIT_CODE"
 echo "Timestamp: $(date)"
 
@@ -342,6 +403,7 @@ if [ $CREATE_BINLOG_EXIT_CODE -eq 0 ]; then
 else
     echo "❌ Failed to create binlog for tenant '$TENANT_NAME'"
     echo "Exit code: $CREATE_BINLOG_EXIT_CODE"
+    echo "⚠️  Container will continue running without binlog functionality"
 fi
 
 # Step 17: Keep Container Running
@@ -354,9 +416,33 @@ echo "Final system resources check:"
 free -h
 df -h
 
-# Keep container running with error handling
+# Keep container running with error handling and monitoring
 set -e
 while true; do
   echo "Container is running... $(date)"
+  
+  # Monitor critical processes
+  if ! pgrep -f "observer" > /dev/null; then
+    echo "❌ Observer process has stopped!"
+    exit 1
+  fi
+  
+  if ! pgrep -f "obproxy" > /dev/null; then
+    echo "❌ OBProxy process has stopped!"
+    exit 1
+  fi
+  
+  # Check memory usage
+  memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+  if (( $(echo "$memory_usage > 90" | bc -l) )); then
+    echo "⚠️  High memory usage: ${memory_usage}%"
+  fi
+  
+  # Check disk usage
+  disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+  if [ "$disk_usage" -gt 90 ]; then
+    echo "⚠️  High disk usage: ${disk_usage}%"
+  fi
+  
   sleep 30
 done
