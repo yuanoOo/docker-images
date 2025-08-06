@@ -90,7 +90,7 @@ jobs:
               else
                 echo "❌ Container stopped - collecting diagnostic info..."
                 echo "Container exit status:"
-                docker ps -a --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}\t{{.ExitCode}}"
+                docker ps -a --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}\t{{.State}}"
                 echo "Container logs:"
                 docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available"
                 echo "System resources:"
@@ -298,7 +298,7 @@ jobs:
         run: |
           echo "=== Container Diagnostics ==="
           echo "Container status:"
-          docker ps -a --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}\t{{.ExitCode}}\t{{.CreatedAt}}"
+          docker ps -a --filter name=obbinlog-ce-test --format "table {{.Names}}\t{{.Status}}\t{{.State}}\t{{.CreatedAt}}"
           
           echo "Container logs:"
           docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available"

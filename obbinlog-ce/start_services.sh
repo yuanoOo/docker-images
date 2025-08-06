@@ -286,19 +286,11 @@ echo "=== Starting CREATE BINLOG command ==="
 echo "Command: CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\""
 echo "Timestamp: $(date)"
 
-# Try direct connection first
-echo "Attempting direct connection to binlog service..."
-timeout 60 obclient -A -c -h 127.0.0.1 -P2983 -e "SELECT 1;" 2>&1 || echo "Direct connection failed"
-
-# Execute CREATE BINLOG with multiple fallback methods
-echo "Method 1: Direct connection to binlog service..."
+# Execute CREATE BINLOG with timeout
+echo "Executing CREATE BINLOG command..."
 proxyro_result=$(timeout 120 obclient -A -c -h 127.0.0.1 -P2983 -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
 proxyro_exit_code=$?
 
-if [ $proxyro_exit_code -eq 0 ]; then
-    echo "✅ CREATE BINLOG succeeded via direct connection"
-    echo "Result: $proxyro_result"
-fi
 echo "执行结果 (退出码: $proxyro_exit_code):"
 echo "$proxyro_result"
 echo ""
