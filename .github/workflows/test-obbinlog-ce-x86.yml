@@ -337,11 +337,15 @@ jobs:
           
           # Try to copy binlog logs from container
           echo "Collecting binlog logs..."
-          docker cp obbinlog-ce-test:/home/ds/oblogproxy/log/oblogproxy.log logs/binlog.log 2>/dev/null || echo "Binlog logs not available" > logs/binlog.log
+          docker cp obbinlog-ce-test:/home/ds/oblogproxy/log/logproxy.log logs/binlog.log 2>/dev/null || echo "Binlog logs not available" > logs/binlog.log
           
           # Try to copy deploy logs
           echo "Collecting deploy logs..."
           docker cp obbinlog-ce-test:/home/ds/oblogproxy/log/deploy.log logs/deploy.log 2>/dev/null || echo "Deploy logs not available" > logs/deploy.log
+          
+          # Try to copy out logs
+          echo "Collecting out logs..."
+          docker cp obbinlog-ce-test:/home/ds/oblogproxy/log/out.log logs/out.log 2>/dev/null || echo "Out logs not available" > logs/out.log
           
           # Get system information
           echo "Collecting system information..."
