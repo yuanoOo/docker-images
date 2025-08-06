@@ -108,18 +108,9 @@ echo "Checking Observer status after sleep..."
 echo "Observer process status:"
 ps aux | grep observer || echo "Observer process not found"
 
-echo "Observer logs (last 10 lines):"
-tail -10 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
-
 echo "Checking Observer connection..."
 if obclient -h127.0.0.1 -uroot -P $JDBC_PORT -e "SELECT 1;" 2>/dev/null; then
   echo "Observer is ready!"
-else
-  echo "Observer not ready yet, waiting additional 30 seconds..."
-  sleep 30
-  echo "Final Observer status check:"
-  ps aux | grep observer || echo "Observer process not found"
-  tail -10 /home/admin/oceanbase/store/test/log/observer.log 2>/dev/null || echo "No observer log found"
 fi
 
 # Step 9: Initialize OceanBase Cluster and Create Users
@@ -326,8 +317,11 @@ echo "=== Starting CREATE BINLOG command ==="
 echo "Command: CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\""
 echo "Timestamp: $(date)"
 
+echo "Observer process status:"
+ps aux | grep observer || echo "Observer process not found"
+
 # Execute CREATE BINLOG with timeout and detailed logging
-timeout 300 obclient -A -c -h 127.0.0.1 -P2983 <<EOF
+timeout 10 obclient -A -c -h 127.0.0.1 -P2983 <<EOF
 CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}";
 EOF
 
