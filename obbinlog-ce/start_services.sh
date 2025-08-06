@@ -132,7 +132,6 @@ free -h
 df -h
 
 # Add error handling for cluster initialization
-set +e
 obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A <<EOF
 SET SESSION ob_query_timeout=1000000000;
 ALTER SYSTEM BOOTSTRAP ZONE "zone1" SERVER "127.0.0.1:${RPC_PORT}";
@@ -235,9 +234,38 @@ EOF
 echo "Deploying binlog service..."
 source /etc/profile
 cd /home/ds/oblogproxy/env/
+
+echo "=== Binlog Service Deployment ==="
+echo "Current directory: $(pwd)"
+echo "Deploy script exists: $(ls -la deploy.sh 2>/dev/null || echo 'deploy.sh not found')"
+echo "Config file exists: $(ls -la deploy.conf.json 2>/dev/null || echo 'deploy.conf.json not found')"
+
+echo "Starting binlog service deployment..."
 sh deploy.sh -m deploy -f deploy.conf.json
 
-echo "Binlog service is running"
+DEPLOY_EXIT_CODE=$?
+echo "Deploy script exit code: $DEPLOY_EXIT_CODE"
+
+if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+    echo "✅ Binlog service deployment completed"
+else
+    echo "❌ Binlog service deployment failed"
+fi
+
+# Wait a bit for service to start
+echo "Waiting for binlog service to start..."
+sleep 10
+
+# Check binlog service logs
+echo "=== Binlog Service Logs ==="
+if [ -f "/home/ds/oblogproxy/log/oblogproxy.log" ]; then
+    echo "Recent binlog service logs:"
+    tail -20 /home/ds/oblogproxy/log/oblogproxy.log 2>/dev/null || echo "Cannot read binlog service logs"
+else
+    echo "Binlog service log file not found"
+fi
+
+echo "Binlog service deployment completed"
 
 # Step 15: Configure OBProxy Binlog Settings
 # =============================================================================
@@ -250,11 +278,69 @@ EOF
 # Step 16: Create Binlog for Tenant
 # =============================================================================
 echo "Creating binlog for tenant..."
+echo "=== Binlog Creation Debug Info ==="
+echo "Cluster Name: ${CLUSTER_NAME}"
+echo "Tenant Name: $TENANT_NAME"
+echo "OBProxy Port: $OBPROXY_PORT"
+echo "Binlog Service Port: 2983"
+echo "=================================="
+
+# Check if binlog service is running
+echo "Checking binlog service status..."
+if pgrep -f "oblogproxy" > /dev/null; then
+    echo "✅ Binlog service process is running"
+else
+    echo "❌ Binlog service process not found"
+fi
+
+# Check if port 2983 is listening
+echo "Checking if port 2983 is listening..."
+if netstat -tlnp 2>/dev/null | grep ":2983 " > /dev/null; then
+    echo "✅ Port 2983 is listening"
+else
+    echo "❌ Port 2983 is not listening"
+    echo "Current listening ports:"
+    netstat -tlnp 2>/dev/null | grep LISTEN || echo "No listening ports found"
+fi
+
+# Test connection to binlog service
+echo "Testing connection to binlog service..."
+if timeout 10 bash -c "</dev/tcp/127.0.0.1/2983" 2>/dev/null; then
+    echo "✅ Can connect to binlog service on port 2983"
+else
+    echo "❌ Cannot connect to binlog service on port 2983"
+fi
+
+# Check cluster service availability
+echo "Checking cluster service availability..."
+if curl -s "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}" > /dev/null 2>&1; then
+    echo "✅ Cluster service is accessible"
+else
+    echo "❌ Cluster service is not accessible"
+fi
+
+echo "Waiting 20 seconds before creating binlog..."
 sleep 20
-obclient -A -c -h 127.0.0.1 -P2983 <<EOF
+
+echo "=== Starting CREATE BINLOG command ==="
+echo "Command: CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\""
+echo "Timestamp: $(date)"
+
+# Execute CREATE BINLOG with timeout and detailed logging
+timeout 300 obclient -A -c -h 127.0.0.1 -P2983 <<EOF
 CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL "http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}";
 EOF
-echo "Binlog created successfully for tenant '$TENANT_NAME'"
+
+CREATE_BINLOG_EXIT_CODE=$?
+echo "CREATE BINLOG command exit code: $CREATE_BINLOG_EXIT_CODE"
+echo "Timestamp: $(date)"
+
+if [ $CREATE_BINLOG_EXIT_CODE -eq 0 ]; then
+    echo "✅ Binlog created successfully for tenant '$TENANT_NAME'"
+else
+    echo "❌ Failed to create binlog for tenant '$TENANT_NAME'"
+    echo "Exit code: $CREATE_BINLOG_EXIT_CODE"
+fi
 
 # Step 17: Keep Container Running
 # =============================================================================
