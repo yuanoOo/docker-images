@@ -295,7 +295,7 @@ echo "If the command fails, the container will continue running without binlog f
 
 # Try to execute CREATE BINLOG with error handling
 set +e  # Don't exit on error
-proxyro_result1=$(timeout 12 obclient -A -c -h 127.0.0.1 -P2983 -e "UPDATE config_template SET value='false' WHERE key_name='enable_resource_check';" 2>&1)
+proxyro_result1=$(obclient -h127.0.0.1 -uroot@sys -P ${JDBC_PORT} -p$PASSWORD  -e "UPDATE binlog_cluster.config_template SET value='false' WHERE key_name='enable_resource_check';" 2>&1)
 proxyro_exit_code1=$?
 set -e  # Re-enable exit on error
 
@@ -304,7 +304,7 @@ echo "$proxyro_result1"
 
 
 set +e  # Don't exit on error
-proxyro_result2=$(timeout 12 obclient -A -c -h 127.0.0.1 -P2983 -e "UPDATE config_template SET value=95 WHERE key_name='node_disk_limit_threshold_percent';" 2>&1)
+proxyro_result2=$(obclient -h127.0.0.1 -uroot@sys -P ${JDBC_PORT} -p$PASSWORD -e "UPDATE binlog_cluster.config_template SET value=95 WHERE key_name='node_disk_limit_threshold_percent';" 2>&1)
 proxyro_exit_code2=$?
 set -e  # Re-enable exit on error
 
