@@ -217,6 +217,7 @@ cat <<EOF > /home/ds/oblogproxy/env/deploy.conf.json
   "sys_user": "root",
   "sys_password": "$PASSWORD",
   "supervise_start": "false",
+  "node_disk_limit_threshold_percent": 95,
   "init_schema": ""
 }
 EOF
