@@ -13,6 +13,7 @@ set -e
 CLUSTER_NAME=${CLUSTER_NAME:-"ob"}
 OBSERVER_PATCHED=${OBSERVER_PATCHED:-"/home/admin/oceanbase/bin/observer"}
 OBPROXY_PATCHED=${OBPROXY_PATCHED:-"/home/admin/obproxy/bin/obproxy"}
+OBBINLOG_PATCHED=${OBBINLOG_PATCHED:-"/home/ds/oblogproxy/run.sh"}
 
 # Step 2: Port Configuration
 # =============================================================================
@@ -291,6 +292,28 @@ echo "Timestamp: $(date)"
 echo "Executing CREATE BINLOG command..."
 echo "Note: This command may take some time and could potentially cause issues."
 echo "If the command fails, the container will continue running without binlog functionality."
+
+# Try to execute CREATE BINLOG with error handling
+set +e  # Don't exit on error
+proxyro_result1=$(timeout 12 obclient -A -c -h 127.0.0.1 -P2983 -e "UPDATE config_template SET value='false' WHERE key_name='enable_resource_check';" 2>&1)
+proxyro_exit_code1=$?
+set -e  # Re-enable exit on error
+
+echo "执行结果 (退出码: $proxyro_exit_code1):"
+echo "$proxyro_result1"
+
+
+set +e  # Don't exit on error
+proxyro_result2=$(timeout 12 obclient -A -c -h 127.0.0.1 -P2983 -e "UPDATE config_template SET value=95 WHERE key_name='node_disk_limit_threshold_percent';" 2>&1)
+proxyro_exit_code2=$?
+set -e  # Re-enable exit on error
+
+echo "执行结果 (退出码: $proxyro_exit_code2):"
+echo "$proxyro_result2"
+
+$OBBINLOG_PATCHED stop
+$OBBINLOG_PATCHED start
+
 
 # Try to execute CREATE BINLOG with error handling
 set +e  # Don't exit on error
