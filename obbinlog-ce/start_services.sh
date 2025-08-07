@@ -311,8 +311,9 @@ set -e  # Re-enable exit on error
 echo "执行结果 (退出码: $proxyro_exit_code2):"
 echo "$proxyro_result2"
 
-#$OBBINLOG_PATCHED stop
-#$OBBINLOG_PATCHED start
+$OBBINLOG_PATCHED stop
+$OBBINLOG_PATCHED start
+sleep 20
 
 
 # Try to execute CREATE BINLOG with error handling
