@@ -247,6 +247,7 @@ jobs:
           
           # Get position after insert
           echo "7. Getting binlog position after insert..."
+          sleep 5
           POS_AFTER_INSERT=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
           echo "Position after insert: $POS_AFTER_INSERT"
           
@@ -276,6 +277,7 @@ jobs:
           
           # Get final position
           echo "10. Getting final binlog position..."
+          sleep 5
           FINAL_POSITION=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
           echo "Final binlog position: $FINAL_POSITION"
           
