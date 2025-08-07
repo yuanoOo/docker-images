@@ -312,7 +312,14 @@ echo "执行结果 (退出码: $proxyro_exit_code2):"
 echo "$proxyro_result2"
 
 $OBBINLOG_PATCHED stop
+s1=$?
+echo "stop 执行结果 (退出码: $s1):"
+echo "$s1"
+
 $OBBINLOG_PATCHED start
+s2=$?
+echo "start 执行结果 (退出码: $s2):"
+echo "$s2"
 sleep 20
 
 
