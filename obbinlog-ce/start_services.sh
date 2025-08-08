@@ -29,8 +29,8 @@ PASSWORD_SHA1=$(echo -n "$PASSWORD" | sha1sum | cut -d' ' -f1)  # SHA1 hash for 
 
 # Step 3.1: Storage Configuration
 # =============================================================================
-DATAFILE_SIZE=${DATAFILE_SIZE:-"10G"}        # Data file size (configurable via Docker env)
-LOG_DISK_SIZE=${LOG_DISK_SIZE:-"5G"}        # Log disk size (configurable via Docker env)
+DATAFILE_SIZE=${DATAFILE_SIZE:-"5G"}        # Data file size (configurable via Docker env)
+LOG_DISK_SIZE=${LOG_DISK_SIZE:-"4G"}        # Log disk size (configurable via Docker env)
 
 # Step 4: Display Configuration Information
 # =============================================================================
@@ -102,12 +102,8 @@ EOF
 # Step 8: Wait for Observer to Start
 # =============================================================================
 echo "Waiting for Observer to start..."
-echo "Sleeping for 120 seconds to allow Observer to start..."
-sleep 120
-
-echo "Checking Observer status after sleep..."
-echo "Observer process status:"
-ps aux | grep observer || echo "Observer process not found"
+echo "Sleeping for 60 seconds to allow Observer to start..."
+sleep 60
 
 echo "Checking Observer connection..."
 if obclient -h127.0.0.1 -uroot -P $JDBC_PORT -e "SELECT 1;" 2>/dev/null; then
@@ -118,10 +114,7 @@ fi
 # =============================================================================
 echo "Initializing OceanBase cluster and creating users..."
 
-# Check system resources before cluster initialization
-echo "Checking system resources before cluster initialization..."
-free -h
-df -h
+#
 
 # Add error handling for cluster initialization
 obclient -h127.0.0.1 -uroot -P $JDBC_PORT -A <<EOF
@@ -229,37 +222,8 @@ echo "Deploying binlog service..."
 source /etc/profile
 cd /home/ds/oblogproxy/env/
 
-echo "=== Binlog Service Deployment ==="
-echo "Current directory: $(pwd)"
-echo "Deploy script exists: $(ls -la deploy.sh 2>/dev/null || echo 'deploy.sh not found')"
-echo "Config file exists: $(ls -la deploy.conf.json 2>/dev/null || echo 'deploy.conf.json not found')"
-
-echo "Starting binlog service deployment..."
 sh deploy.sh -m deploy -f deploy.conf.json
-
-DEPLOY_EXIT_CODE=$?
-echo "Deploy script exit code: $DEPLOY_EXIT_CODE"
-
-if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
-    echo "✅ Binlog service deployment completed"
-else
-    echo "❌ Binlog service deployment failed"
-fi
-
-# Wait a bit for service to start
-echo "Waiting for binlog service to start..."
-sleep 10
-
-# Check binlog service logs
-echo "=== Binlog Service Logs ==="
-if [ -f "/home/ds/oblogproxy/log/oblogproxy.log" ]; then
-    echo "Recent binlog service logs:"
-    tail -20 /home/ds/oblogproxy/log/oblogproxy.log 2>/dev/null || echo "Cannot read binlog service logs"
-else
-    echo "Binlog service log file not found"
-fi
-
-echo "Binlog service deployment completed"
+sleep 5
 
 # Step 15: Configure OBProxy Binlog Settings
 # =============================================================================
@@ -271,17 +235,6 @@ EOF
 
 # Step 16: Create Binlog for Tenant
 # =============================================================================
-# Test connection to binlog service with more detailed error
-echo "Testing connection to binlog service..."
-if timeout 10 bash -c "</dev/tcp/127.0.0.1/2983" 2>/dev/null; then
-    echo "✅ Can connect to binlog service on port 2983"
-else
-    echo "❌ Cannot connect to binlog service on port 2983"
-    echo "Connection test details:"
-    timeout 5 telnet 127.0.0.1 2983 2>&1 || echo "Telnet test failed"
-fi
-
-echo "Waiting 30 seconds before creating binlog..."
 sleep 30
 
 echo "=== Starting CREATE BINLOG command ==="
@@ -293,108 +246,36 @@ echo "Executing CREATE BINLOG command..."
 echo "Note: This command may take some time and could potentially cause issues."
 echo "If the command fails, the container will continue running without binlog functionality."
 
-# Try to execute CREATE BINLOG with error handling
-set +e  # Don't exit on error
-proxyro_result1=$(obclient -h127.0.0.1 -uroot@sys -P ${JDBC_PORT} -p$PASSWORD  -e "UPDATE binlog_cluster.config_template SET value='false' WHERE key_name='enable_resource_check';" 2>&1)
-proxyro_exit_code1=$?
-set -e  # Re-enable exit on error
+# Apply binlog resource settings quietly
+obclient -h127.0.0.1 -uroot@sys -P ${JDBC_PORT} -p$PASSWORD -e "UPDATE binlog_cluster.config_template SET value='false' WHERE key_name='enable_resource_check';" >/dev/null 2>&1
+obclient -h127.0.0.1 -uroot@sys -P ${JDBC_PORT} -p$PASSWORD -e "UPDATE binlog_cluster.config_template SET value=95 WHERE key_name='node_disk_limit_threshold_percent';" >/dev/null 2>&1
 
-echo "执行结果 (退出码: $proxyro_exit_code1):"
-echo "$proxyro_result1"
-
-
-set +e  # Don't exit on error
-proxyro_result2=$(obclient -h127.0.0.1 -uroot@sys -P ${JDBC_PORT} -p$PASSWORD -e "UPDATE binlog_cluster.config_template SET value=95 WHERE key_name='node_disk_limit_threshold_percent';" 2>&1)
-proxyro_exit_code2=$?
-set -e  # Re-enable exit on error
-
-echo "执行结果 (退出码: $proxyro_exit_code2):"
-echo "$proxyro_result2"
-
-$OBBINLOG_PATCHED stop
-s1=$?
-echo "stop 执行结果 (退出码: $s1):"
-echo "$s1"
-
-$OBBINLOG_PATCHED start
-s2=$?
-echo "start 执行结果 (退出码: $s2):"
-echo "$s2"
-sleep 20
+$OBBINLOG_PATCHED stop >/dev/null 2>&1 || true
+sleep 3
+$OBBINLOG_PATCHED start >/dev/null 2>&1 || true
+sleep 10
 
 
-# Try to execute CREATE BINLOG with error handling
-set +e  # Don't exit on error
-proxyro_result=$(timeout 12 obclient -A -c -h 127.0.0.1 -P2983 -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
+# Try to execute CREATE BINLOG; exit on failure
+proxyro_result=$(obclient -A -c -h 127.0.0.1 -P2983 -e "CREATE BINLOG FOR TENANT ${CLUSTER_NAME}.$TENANT_NAME WITH CLUSTER URL \"http://127.0.0.1:8080/services?Action=ObRootServiceInfo&User_ID=alibaba&UID=admin&ObCluster=${CLUSTER_NAME}\";" 2>&1)
 proxyro_exit_code=$?
-set -e  # Re-enable exit on error
 
 echo "执行结果 (退出码: $proxyro_exit_code):"
 echo "$proxyro_result"
 echo ""
 
-# If CREATE BINLOG fails, continue without it
 if [ $proxyro_exit_code -ne 0 ]; then
-    echo "⚠️  CREATE BINLOG command failed, but container will continue running"
-    echo "This is expected behavior for some environments"
-    CREATE_BINLOG_EXIT_CODE=0  # Treat as success to continue container
-else
-    CREATE_BINLOG_EXIT_CODE=$proxyro_exit_code
+    echo "❌ CREATE BINLOG command failed"
+    exit 1
 fi
 
-echo "CREATE BINLOG command exit code: $CREATE_BINLOG_EXIT_CODE"
-echo "Timestamp: $(date)"
-
-if [ $CREATE_BINLOG_EXIT_CODE -eq 0 ]; then
-    if [ $proxyro_exit_code -eq 0 ]; then
-        echo "✅ Binlog created successfully for tenant '$TENANT_NAME'"
-    else
-        echo "⚠️  CREATE BINLOG command failed, but container will continue running"
-        echo "Binlog functionality may not be available"
-    fi
-else
-    echo "❌ Failed to create binlog for tenant '$TENANT_NAME'"
-    echo "Exit code: $CREATE_BINLOG_EXIT_CODE"
-    echo "⚠️  Container will continue running without binlog functionality"
-fi
+echo "✅ Binlog created successfully for tenant '$TENANT_NAME'"
 
 # Step 17: Keep Container Running
 # =============================================================================
-echo "OceanBase deployment completed successfully!"
-echo "Container will keep running..."
+echo "OBBinlog is ready!"
 
-# Check final system resources
-echo "Final system resources check:"
-free -h
-df -h
-
-# Keep container running with error handling and monitoring
-set -e
+# Keep container running quietly
 while true; do
-  echo "Container is running... $(date)"
-  
-  # Monitor critical processes
-  if ! pgrep -f "observer" > /dev/null; then
-    echo "❌ Observer process has stopped!"
-    exit 1
-  fi
-  
-  if ! pgrep -f "obproxy" > /dev/null; then
-    echo "❌ OBProxy process has stopped!"
-    exit 1
-  fi
-  
-  # Check memory usage
-  memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
-  if (( $(echo "$memory_usage > 90" | bc -l) )); then
-    echo "⚠️  High memory usage: ${memory_usage}%"
-  fi
-  
-  # Check disk usage
-  disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
-  if [ "$disk_usage" -gt 90 ]; then
-    echo "⚠️  High disk usage: ${disk_usage}%"
-  fi
-  
   sleep 30
 done

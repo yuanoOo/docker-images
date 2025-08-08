@@ -126,7 +126,7 @@ jobs:
             echo "Complete container logs:"
             docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available yet"
             
-            if docker logs obbinlog-ce-test 2>/dev/null | grep -q "Container will keep running"; then
+            if docker logs obbinlog-ce-test 2>/dev/null | grep -q "OBBinlog is ready!"; then
               echo "✅ Container is ready! (attempt $i/120)"
               # Kill background monitor
               kill $MONITOR_PID 2>/dev/null || true
