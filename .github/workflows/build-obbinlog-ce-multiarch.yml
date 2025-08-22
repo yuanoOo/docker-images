@@ -1,0 +1,103 @@
+name: build obbinlog-ce multi-arch
+
+on:
+  push:
+    branches:
+      - 'release-*'
+  pull_request:
+    paths:
+      - '.github/workflows/*obbinlog-ce*.yml'
+      - 'obbinlog-ce/**'
+  workflow_dispatch:
+
+concurrency:
+  group: build-obbinlog-ce-multiarch-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-obbinlog-ce-multiarch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Clean up disk space
+        run: |
+          echo "Cleaning up disk space..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          echo "Disk space cleaned up"
+
+      - name: Build obbinlog-ce for both architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: ./obbinlog-ce
+          platforms: linux/amd64,linux/arm64
+          file: ./obbinlog-ce/Dockerfile
+          push: false
+          outputs: type=docker,dest=obbinlog-ce-amd64.tar
+          tags: obbinlog-ce:test-amd64
+          build-args: |
+            TARGETPLATFORM=linux/amd64
+
+      - name: Build obbinlog-ce for ARM64
+        uses: docker/build-push-action@v6
+        with:
+          context: ./obbinlog-ce
+          platforms: linux/arm64
+          file: ./obbinlog-ce/Dockerfile
+          push: false
+          outputs: type=docker,dest=obbinlog-ce-arm64.tar
+          tags: obbinlog-ce:test-arm64
+          build-args: |
+            TARGETPLATFORM=linux/arm64
+
+      - name: Clean up build resources
+        run: |
+          echo "Cleaning up build resources..."
+          docker system prune -f
+          docker builder prune -f
+          echo "Build resources cleaned up"
+
+      - name: Compress Docker images
+        run: |
+          echo "Compressing Docker images..."
+          
+          # Compress AMD64 image
+          gzip obbinlog-ce-amd64.tar
+          echo "AMD64 image compressed as obbinlog-ce-amd64.tar.gz"
+          ls -lh obbinlog-ce-amd64.tar.gz
+          
+          # Compress ARM64 image
+          gzip obbinlog-ce-arm64.tar
+          echo "ARM64 image compressed as obbinlog-ce-arm64.tar.gz"
+          ls -lh obbinlog-ce-arm64.tar.gz
+
+      - name: Upload Docker images as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: obbinlog-ce-images-${{ github.run_id }}
+          path: |
+            obbinlog-ce-amd64.tar.gz
+            obbinlog-ce-arm64.tar.gz
+          retention-days: 7
+
+      - name: Show build information
+        run: |
+          echo "=== Build Information ==="
+          echo "AMD64 image: obbinlog-ce-amd64.tar.gz"
+          echo "ARM64 image: obbinlog-ce-arm64.tar.gz"
+          echo ""
+          echo "=== File sizes ==="
+          ls -lh obbinlog-ce-*.tar.gz
+          echo ""
+          echo "=== Multi-arch build completed successfully ==="
