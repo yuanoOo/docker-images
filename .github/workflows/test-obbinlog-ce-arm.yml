@@ -81,33 +81,15 @@ jobs:
 
       - name: Test database connection and binlog
         run: |
-          echo "Testing database connection and binlog functionality..."
-          
-          # Wait for database to be ready
-          echo "Waiting for database to be ready..."
           for i in {1..60}; do
-            echo "Attempting database connection (attempt $i/60)..."
             if mysql -h127.0.0.1 -P2881 -uroot -p123456 -e "SELECT 1;" 2>/dev/null; then
-              echo "Database is ready!"
               break
-            else
-              echo "Connection failed (attempt $i/60). Error:"
-              mysql -h127.0.0.1 -P2881 -uroot -p123456 -e "SELECT 1;" 2>&1 || true
-              echo "Waiting 10 seconds before next attempt..."
             fi
             sleep 10
           done
           
-          # Test sys tenant connection
-          echo "Testing sys tenant connection..."
           mysql -h127.0.0.1 -P2881 -uroot -p123456 -e "SHOW DATABASES;"
-          
-          # Test test tenant connection via OBProxy (port 2883)
-          echo "Testing test tenant connection via OBProxy..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "SHOW DATABASES;"
-          
-          # Test basic SQL operations via OBProxy
-          echo "Testing basic SQL operations via OBProxy..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             CREATE DATABASE IF NOT EXISTS test_db;
             USE test_db;
@@ -118,15 +100,10 @@ jobs:
             DROP DATABASE test_db;
           "
           
-          # Test binlog functionality
-          echo "=== Testing Binlog Functionality ==="
-          
           # Wait for binlog service to be ready
-          echo "1. Waiting for binlog service to be ready..."
           sleep 30
           
-          # Check initial binlog status
-          echo "2. Checking initial binlog status..."
+          # Check binlog configuration
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             SHOW VARIABLES LIKE 'log_bin';
             SHOW VARIABLES LIKE 'binlog_format';
@@ -134,12 +111,9 @@ jobs:
           "
           
           # Get initial binlog position
-          echo "3. Getting initial binlog position..."
           INITIAL_POSITION=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
-          echo "Initial binlog position: $INITIAL_POSITION"
           
-          # Create test database and table for binlog testing
-          echo "4. Creating test database and table for binlog testing..."
+          # Create test database and table
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             CREATE DATABASE IF NOT EXISTS binlog_test_db;
             USE binlog_test_db;
@@ -151,12 +125,9 @@ jobs:
           "
           
           # Get position before insert
-          echo "5. Getting binlog position before insert..."
           POS_BEFORE_INSERT=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
-          echo "Position before insert: $POS_BEFORE_INSERT"
           
-          # Insert test data
-          echo "6. Inserting test data to generate binlog events..."
+          # Insert test data to generate binlog events
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             USE binlog_test_db;
             INSERT INTO binlog_test_table (name) VALUES ('test_binlog_1');
@@ -165,27 +136,20 @@ jobs:
           "
           
           # Get position after insert
-          echo "7. Getting binlog position after insert..."
           POS_AFTER_INSERT=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
-          echo "Position after insert: $POS_AFTER_INSERT"
           
-          # Check if position changed
+          # Verify position changed after insert
           if [ "$POS_BEFORE_INSERT" != "$POS_AFTER_INSERT" ]; then
-            echo "✅ Binlog position changed successfully!"
-            echo "Position change: $POS_BEFORE_INSERT -> $POS_AFTER_INSERT"
+            echo "✅ Binlog position changed: $POS_BEFORE_INSERT -> $POS_AFTER_INSERT"
           else
             echo "❌ Binlog position did not change!"
             exit 1
           fi
           
           # Show binlog events
-          echo "8. Showing binlog events..."
-          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
-            SHOW BINLOG EVENTS;
-          "
+          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "SHOW BINLOG EVENTS;"
           
           # Test DDL operations
-          echo "9. Testing DDL operations for binlog..."
           mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
             USE binlog_test_db;
             ALTER TABLE binlog_test_table ADD COLUMN description TEXT;
@@ -193,24 +157,17 @@ jobs:
             DELETE FROM binlog_test_table WHERE id = 3;
           "
           
-          # Get final position
-          echo "10. Getting final binlog position..."
           FINAL_POSITION=$(mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -s -e "SHOW MASTER STATUS\G" | grep "Position:" | awk '{print $2}')
-          echo "Final binlog position: $FINAL_POSITION"
           
-          # Show final binlog events
-          echo "11. Showing final binlog events..."
-          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
-            SHOW BINLOG EVENTS;
-          "
+          # Verify final position changed
+          if [ "$POS_AFTER_INSERT" != "$FINAL_POSITION" ]; then
+            echo "✅ Final binlog position changed: $POS_AFTER_INSERT -> $FINAL_POSITION"
+          else
+            echo "❌ Final binlog position did not change!"
+            exit 1
+          fi
           
-          # Cleanup test database
-          echo "12. Cleaning up test database..."
-          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "
-            DROP DATABASE IF EXISTS binlog_test_db;
-          "
-          
-          echo "✅ Binlog testing completed successfully!"
+          mysql -h127.0.0.1 -P2883 -uroot@test -p123456 -e "SHOW BINLOG EVENTS;"
 
       - name: Check container logs and diagnose issues
         if: always()
