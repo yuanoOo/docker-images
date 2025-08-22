@@ -3,7 +3,7 @@ name: build obbinlog-ce multi-arch
 on:
   push:
     branches:
-      - 'release-*'
+      - 'test-*'
   pull_request:
     paths:
       - '.github/workflows/*obbinlog-ce*.yml'
