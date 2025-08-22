@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   test-obbinlog-ce-arm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-arm64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,6 +25,15 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Clean up disk space
+        run: |
+          echo "Cleaning up disk space..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          echo "Disk space cleaned up"
 
       - name: Build obbinlog-ce for ARM64
         uses: docker/build-push-action@v6
@@ -47,9 +56,9 @@ jobs:
 
       - name: Start obbinlog-ce container
         run: |
-          echo "Starting obbinlog-ce container..."
           docker run -d \
             --name obbinlog-ce-test \
+            --memory=8g --memory-swap=8g --cpus=4 \
             -p 2881:2881 \
             -p 2883:2883 \
             -e CLUSTER_NAME=test \
@@ -57,29 +66,12 @@ jobs:
             -e PASSWORD=123456 \
             obbinlog-ce:test-arm64
           
-          echo "Waiting for container to start and be ready..."
           for i in {1..120}; do
-            echo "=== Container startup check (attempt $i/120) ==="
-            echo "Container status:"
-            docker ps --filter name=obbinlog-ce-test || echo "Container not found"
-            
-            echo "Complete container logs:"
-            docker logs obbinlog-ce-test 2>/dev/null || echo "No logs available yet"
-            
-            if docker logs obbinlog-ce-test 2>/dev/null | grep -q "Container will keep running"; then
-              echo "✅ Container is ready! (attempt $i/120)"
+            if docker logs obbinlog-ce-test 2>/dev/null | grep -q "OBBinlog is ready!"; then
               break
             fi
-            
-            echo "⏳ Container not ready yet, waiting 5 seconds..."
-            echo "================================================"
             sleep 5
           done
-          
-          echo "Final container status:"
-          docker ps
-          echo "Complete container logs:"
-          docker logs obbinlog-ce-test
 
       - name: Install MySQL client
         run: |
