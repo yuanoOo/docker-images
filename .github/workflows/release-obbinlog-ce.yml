@@ -45,13 +45,24 @@ jobs:
         id: set_version_vars
         run: echo "version=$(echo $tagName | grep -P '(\d*\.\d*\.\d*\.\d*-\d*)' --only-matching)" >> $GITHUB_OUTPUT
 
-      - name: Build obbinlog-ce w/o cache
+      - name: Build obbinlog-ce for AMD64
         uses: docker/build-push-action@v6
         with:
           context: ./obbinlog-ce
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           file: ./obbinlog-ce/Dockerfile
           push: false
           load: true
           tags: |
-            obbinlog-ce:${{ steps.set_version_vars.outputs.version }} 
+            obbinlog-ce:${{ steps.set_version_vars.outputs.version }}-amd64
+
+      - name: Build obbinlog-ce for ARM64
+        uses: docker/build-push-action@v6
+        with:
+          context: ./obbinlog-ce
+          platforms: linux/arm64
+          file: ./obbinlog-ce/Dockerfile
+          push: false
+          load: true
+          tags: |
+            obbinlog-ce:${{ steps.set_version_vars.outputs.version }}-arm64 
