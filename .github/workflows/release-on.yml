@@ -1,4 +1,4 @@
-name: release obbinlog-ce
+name: release obbinlog-cezsdzdzdzdz
 
 on: 
   push:
@@ -24,8 +24,11 @@ jobs:
       - name: Set Version variables
         id: set_version_vars
         run: |
-          echo "version=$(echo $tagName | grep -P '(\d*\.\d*\.\d*\.\d*-\d*)' --only-matching)" >> $GITHUB_OUTPUT
-          echo "short_version=$(echo $tagName | grep -P '(\d*\.\d*\.\d*\.\d*)' --only-matching)"
+          echo "Tag name: $tagName"
+          VERSION=$(echo $tagName | sed 's/obbinlog-ce-//')
+          echo "Extracted version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$(echo $tagName | sed 's/obbinlog-ce-//')" >> $GITHUB_OUTPUT
 
       - name: Build and push obbinlog-ce w/o cache
         uses: docker/build-push-action@v6
