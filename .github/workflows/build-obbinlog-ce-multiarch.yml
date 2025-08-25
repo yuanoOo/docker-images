@@ -37,11 +37,11 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           echo "Disk space cleaned up"
 
-      - name: Build obbinlog-ce for both architectures
+      - name: Build obbinlog-ce for AMD64
         uses: docker/build-push-action@v6
         with:
           context: ./obbinlog-ce
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           file: ./obbinlog-ce/Dockerfile
           push: false
           outputs: type=docker,dest=obbinlog-ce-amd64.tar
